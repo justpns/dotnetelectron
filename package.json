@@ -1,0 +1,29 @@
+{
+  "name": "dotnetelectron",
+  "version": "1.0.0",
+  "description": "For test dotnet with electron",
+  "main": "main.js",
+  "dependencies": {
+    "electron": "^2.0.8"
+  },
+  "devDependencies": {
+    "foreman": "^3.0.1"
+  },
+  "scripts": {
+    "dev" : "nf start",
+    "electron": "electron .",
+    "electron-start": "node electron-wait-dotnet",
+    "electron-dev": "ELECTRON_START_URL=http://localhost:5001 electron ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/justpns/dotnetelectron.git"
+  },
+  "author": "GWZ",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/justpns/dotnetelectron/issues"
+  },
+  "homepage": "./"
+}
+
