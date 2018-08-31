@@ -1,17 +1,61 @@
 const electron = require('electron');
+// Electron Libs
+const { ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
+
 // Module to control application life.
 const app = electron.app;
 // Module to create native browser window.
 const BrowserWindow = electron.BrowserWindow;
 
-const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const url = require('url');
+const path = require('path');
+const glob = require('glob');
+const isDev = require('electron-is-dev');
+
+// commmandline arguments
+const forceDevtools = process.argv.includes('--force-devtools');
+if (process.argv.includes('--disable-hardware-acceleration')) {
+  app.disableHardwareAcceleration();
+}
+
+// 3rd Party Libs
+const appConfig = require('electron-settings');
+require('dotenv').config();
+
+const handleSquirrelEvent = () => {
+    if (process.argv.length === 1) {
+      return false;
+    }
+  
+    const squirrelEvent = process.argv[1];
+    switch (squirrelEvent) {
+      case '--squirrel-install':
+      case '--squirrel-updated':
+      case '--squirrel-uninstall':
+        setTimeout(app.quit, 1000);
+        return true;
+  
+      case '--squirrel-obsolete':
+        app.quit();
+        return true;
+    }
+  }
+  
+  if (handleSquirrelEvent()) {
+    // squirrel event handled and app will exit in 1000ms, so don't do anything else
+    return;
+  }
+
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let mainWindow;
+let mainWindow = null;
 
 function createWindow() {
+
     // Create the browser window.
     mainWindow = new BrowserWindow(
       {
@@ -20,32 +64,46 @@ function createWindow() {
         webPreferences: {
           nodeIntegration: false,
           preload: 'preload.js'
-        }
+        },
+        resizable: false,
+        title: 'Keystone',
       }
     );
 
     // and load the index.html of the app.
 
-    const startUrl = process.env.ELECTRON_START_URL
+    // Register WindowID
+    appConfig.set('mainWindowID', parseInt(mainWindow.id));
+
+    const startUrl = 'https://localhost:5001/'
     console.log(startUrl);
     mainWindow.loadURL(startUrl);
 
     // Open the DevTools.
-    mainWindow.webContents.openDevTools();
+
+    mainWindow.on('show', event => {
+      if (isDev || forceDevtools) mainWindow.webContents.openDevTools({ mode: 'detach' });
+    });
 
     // Emitted when the window is closed.
     mainWindow.on('closed', function () {
-        // Dereference the window object, usually you would store windows
-        // in an array if your app supports multi windows, this is the time
-        // when you should delete the corresponding element.
-        mainWindow = null
+      if (process.platform === 'darwin') {
+        event.preventDefault();
+        if (isDev || forceDevtools) mainWindow.webContents.closeDevTools();
+        mainWindow.hide();
+      } else {
+        app.quit();
+      }
     })
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
+app.on('ready', function () {  
+  createWindow();
+  autoUpdater.checkForUpdates();
+});
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {
@@ -64,5 +122,21 @@ app.on('activate', function () {
     }
 });
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+app.on('before-quit', () => {
+  // Use condition in case quit sequence is initiated by autoUpdater
+  // which will destroy all there windows already before emitting this event
+  if (mainWindow !== null) mainWindow.destroy();
+});
+
+// when the update has been downloaded and is ready to be installed, notify the BrowserWindow
+autoUpdater.on('update-downloaded', (info) => {
+  win.webContents.send('updateReady')
+});
+
+// when receiving a quitAndInstall signal, quit and install the new version ;)
+ipcMain.on("quitAndInstall", (event, arg) => {
+  autoUpdater.quitAndInstall();
+})
+
+
+console.timeEnd('init');
